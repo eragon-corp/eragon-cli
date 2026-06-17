@@ -3,7 +3,6 @@ import { realpathSync } from "node:fs";
 import { basename } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const DEFAULT_BASE_URL = "https://api-keys.eragon.ai";
 const DEFAULT_TIMEOUT_SECONDS = 30;
 
 class UsageError extends Error {
@@ -29,7 +28,7 @@ function stripTrailingSlash(value) {
 }
 
 function tokenFromEnv(env) {
-  return env.ERAGON_KEYGEN_TOKEN || env.KEYGEN_API_TOKEN || "";
+  return env.ERAGON_TOKEN || "";
 }
 
 function optionKey(name) {
@@ -55,8 +54,9 @@ function commandNameFromArgv(argv1) {
 }
 
 export function parseArgs(argv, env = process.env, commandName = "eragon") {
+  const configuredBaseUrl = baseUrlFromEnv(env);
   const options = {
-    baseUrl: stripTrailingSlash(env.ERAGON_KEYGEN_BASE_URL || DEFAULT_BASE_URL),
+    baseUrl: configuredBaseUrl ? stripTrailingSlash(configuredBaseUrl) : "",
     token: tokenFromEnv(env),
     timeout: DEFAULT_TIMEOUT_SECONDS,
     json: false,
@@ -121,15 +121,15 @@ export function parseArgs(argv, env = process.env, commandName = "eragon") {
 function topHelp(commandName) {
   return `Usage: ${commandName} [options] <resource> <command>
 
-Customer CLI for Eragon Anthropic workspace API keys.
+Command-line tools for Eragon workflows.
 
 Resources:
   workspaces        Workspace commands
   keys              Workspace API-key commands
 
 Options:
-  --base-url URL    Defaults to ERAGON_KEYGEN_BASE_URL or ${DEFAULT_BASE_URL}
-  --token TOKEN     Defaults to ERAGON_KEYGEN_TOKEN, then KEYGEN_API_TOKEN
+  --base-url URL    Defaults to ERAGON_BASE_URL
+  --token TOKEN     Defaults to ERAGON_TOKEN
   --timeout SEC     Request timeout in seconds. Defaults to ${DEFAULT_TIMEOUT_SECONDS}
   --json            Print raw JSON for list commands
   -h, --help        Show help
@@ -140,7 +140,7 @@ function workspacesHelp(commandName) {
   return `Usage: ${commandName} workspaces <command>
 
 Commands:
-  list              List workspaces authorized for the service token
+  list              List authorized workspaces
 `;
 }
 
@@ -148,7 +148,7 @@ function keysHelp(commandName) {
   return `Usage: ${commandName} keys <command>
 
 Commands:
-  create            Create an Anthropic API key in an authorized workspace
+  create            Create an API key in an authorized workspace
   get               Get one workspace API key with analytics
   list              List API keys in an authorized workspace
 `;
@@ -158,7 +158,7 @@ function keysCreateHelp(commandName) {
   return `Usage: ${commandName} keys create --workspace ID --name NAME [options]
 
 Options:
-  --workspace ID          Anthropic workspace id
+  --workspace ID          Workspace id
   --name NAME            New API-key name
   --idempotency-key ID   Stable request id for safe retries
   --key-only             Print only the newly shown API key secret
@@ -169,7 +169,7 @@ function keysListHelp(commandName) {
   return `Usage: ${commandName} keys list --workspace ID [options]
 
 Options:
-  --workspace ID    Anthropic workspace id
+  --workspace ID    Workspace id
   --from DATE       Inclusive start date, YYYY-MM-DD
   --to DATE         Exclusive end date, YYYY-MM-DD
   --include-cost    Request cost enrichment explicitly
@@ -181,8 +181,8 @@ function keysGetHelp(commandName) {
   return `Usage: ${commandName} keys get --workspace ID --key ID [options]
 
 Options:
-  --workspace ID    Anthropic workspace id
-  --key ID          Anthropic API-key id
+  --workspace ID    Workspace id
+  --key ID          API-key id
   --from DATE       Inclusive start date, YYYY-MM-DD
   --to DATE         Exclusive end date, YYYY-MM-DD
   --include-cost    Request cost enrichment explicitly
@@ -213,7 +213,15 @@ function helpFor(options) {
 function requireToken(options) {
   if (!options.token) {
     throw new UsageError(
-      "missing service token; set ERAGON_KEYGEN_TOKEN or pass --token",
+      "missing token; set ERAGON_TOKEN or pass --token",
+    );
+  }
+}
+
+function requireBaseUrl(options) {
+  if (!options.baseUrl) {
+    throw new UsageError(
+      "missing base URL; set ERAGON_BASE_URL or pass --base-url",
     );
   }
 }
@@ -266,6 +274,7 @@ async function responseDetail(response) {
 }
 
 async function requestJson(options, fetchImpl, method, path, requestOptions = {}) {
+  requireBaseUrl(options);
   requireToken(options);
   const headers = {
     authorization: `Bearer ${options.token}`,
@@ -505,4 +514,7 @@ function isMainModule() {
 
 if (isMainModule()) {
   process.exitCode = await run();
+}
+function baseUrlFromEnv(env) {
+  return env.ERAGON_BASE_URL || "";
 }

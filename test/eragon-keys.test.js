@@ -36,7 +36,7 @@ async function runCli(argv, { env = {}, response = makeResponse(200, {}) } = {})
     return response;
   };
   const status = await run(argv, {
-    env,
+    env: { ERAGON_BASE_URL: "https://example.test", ...env },
     fetchImpl,
     stdout,
     stderr,
@@ -49,7 +49,7 @@ test("workspaces list uses env token and prints table", async () => {
   const result = await runCli(
     ["--base-url", "https://example.test", "workspaces", "list"],
     {
-      env: { ERAGON_KEYGEN_TOKEN: "customer-token" },
+      env: { ERAGON_TOKEN: "example-token" },
       response: makeResponse(200, {
         workspaces: [
           {
@@ -72,7 +72,7 @@ test("workspaces list uses env token and prints table", async () => {
       url: "https://example.test/anthropic/workspaces",
       method: "GET",
       headers: {
-        authorization: "Bearer customer-token",
+        authorization: "Bearer example-token",
         accept: "application/json",
       },
       body: undefined,
@@ -84,7 +84,7 @@ test("keys create posts to workspace endpoint and can print key only", async () 
   const result = await runCli(
     [
       "--token",
-      "customer-token",
+      "example-token",
       "keys",
       "create",
       "--workspace",
@@ -108,10 +108,10 @@ test("keys create posts to workspace endpoint and can print key only", async () 
   assert.equal(result.stderr, "");
   assert.deepEqual(result.requests, [
     {
-      url: "https://api-keys.eragon.ai/anthropic/workspaces/wrkspc_123/api-keys",
+      url: "https://example.test/anthropic/workspaces/wrkspc_123/api-keys",
       method: "POST",
       headers: {
-        authorization: "Bearer customer-token",
+        authorization: "Bearer example-token",
         accept: "application/json",
         "Idempotency-Key": "ticket-123",
         "content-type": "application/json",
@@ -125,7 +125,7 @@ test("keys list translates range and cost flags", async () => {
   const result = await runCli(
     [
       "--token",
-      "customer-token",
+      "example-token",
       "keys",
       "list",
       "--workspace",
@@ -156,7 +156,7 @@ test("keys list translates range and cost flags", async () => {
   assert.equal(result.requests[0].method, "GET");
   assert.equal(
     result.requests[0].url,
-    "https://api-keys.eragon.ai/anthropic/workspaces/wrkspc_123/api-keys"
+    "https://example.test/anthropic/workspaces/wrkspc_123/api-keys"
       + "?startingOn=2026-06-01&endingBefore=2026-07-01&includeCost=false",
   );
 });
@@ -165,7 +165,7 @@ test("keys get prints json response", async () => {
   const result = await runCli(
     [
       "--token",
-      "customer-token",
+      "example-token",
       "keys",
       "get",
       "--workspace",
@@ -186,8 +186,20 @@ test("keys get prints json response", async () => {
   assert.equal(JSON.parse(result.stdout).summary.line_changes, 14);
   assert.equal(
     result.requests[0].url,
-    "https://api-keys.eragon.ai/anthropic/workspaces/wrkspc_123/api-keys/apikey_123",
+    "https://example.test/anthropic/workspaces/wrkspc_123/api-keys/apikey_123",
   );
+});
+
+test("missing base url returns error without calling api", async () => {
+  const result = await runCli(
+    ["--token", "example-token", "workspaces", "list"],
+    { env: { ERAGON_BASE_URL: "" } },
+  );
+
+  assert.equal(result.status, 2);
+  assert.equal(result.stdout, "");
+  assert.match(result.stderr, /missing base URL/);
+  assert.deepEqual(result.requests, []);
 });
 
 test("missing token returns error without calling api", async () => {
@@ -195,13 +207,13 @@ test("missing token returns error without calling api", async () => {
 
   assert.equal(result.status, 2);
   assert.equal(result.stdout, "");
-  assert.match(result.stderr, /missing service token/);
+  assert.match(result.stderr, /missing token/);
   assert.deepEqual(result.requests, []);
 });
 
 test("api errors show status and detail without token", async () => {
   const result = await runCli(
-    ["--token", "secret-token", "workspaces", "list"],
+    ["--token", "example-token", "workspaces", "list"],
     {
       response: makeResponse(403, { detail: { error: "missing_scope" } }),
     },
@@ -211,7 +223,7 @@ test("api errors show status and detail without token", async () => {
   assert.equal(result.stdout, "");
   assert.match(result.stderr, /request failed \(403\)/);
   assert.match(result.stderr, /missing_scope/);
-  assert.doesNotMatch(result.stderr, /secret-token/);
+  assert.doesNotMatch(result.stderr, /example-token/);
 });
 
 test("help is available at each command level", async () => {

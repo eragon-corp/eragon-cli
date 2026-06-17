@@ -1,9 +1,8 @@
 # Eragon CLI
 
-Customer command-line tool for Eragon-managed Anthropic workspace API keys.
+Command-line tools for Eragon workflows.
 
 The CLI requires Node.js 18 or newer and has no runtime package dependencies.
-It talks to Eragon's managed key API at `https://api-keys.eragon.ai`.
 
 ## Install
 
@@ -21,18 +20,23 @@ eragon --help
 
 ## Usage
 
-Prefer `ERAGON_KEYGEN_TOKEN` over `--token` so bearer tokens do not appear in
-shell history or process lists.
+Configure the API URL and token provided by Eragon:
 
 ```bash
-export ERAGON_KEYGEN_TOKEN='service-token-from-eragon'
+export ERAGON_BASE_URL='https://your-eragon-api-url'
+export ERAGON_TOKEN='token-from-eragon'
+```
 
+Prefer environment variables over command-line flags so bearer tokens and
+account-specific URLs do not appear in shell history or process lists.
+
+```bash
 eragon workspaces list
 
 eragon keys create \
   --workspace wrkspc_xxx \
   --name example-project-key \
-  --idempotency-key request-uuid-or-lumos-request-id
+  --idempotency-key request-uuid-or-ticket-id
 
 eragon keys get \
   --workspace wrkspc_xxx \
@@ -52,13 +56,13 @@ Print raw JSON for automation:
 eragon --json keys list --workspace wrkspc_xxx
 ```
 
-Pipe the newly shown API key directly into a secret manager:
+Pipe newly shown secrets directly into a secret manager:
 
 ```bash
 eragon keys create \
   --workspace wrkspc_xxx \
   --name example-project-key \
-  --idempotency-key request-uuid-or-lumos-request-id \
+  --idempotency-key request-uuid-or-ticket-id \
   --key-only
 ```
 
@@ -72,5 +76,5 @@ eragon --help
 
 ## Security
 
-See [SECURITY.md](SECURITY.md). Do not paste generated API keys or Eragon
-service tokens into Slack, tickets, logs, screenshots, or shared docs.
+See [SECURITY.md](SECURITY.md). Do not paste tokens, generated secrets, logs,
+screenshots, or account-specific URLs into public issues or shared docs.

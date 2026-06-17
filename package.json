@@ -1,7 +1,7 @@
 {
   "name": "@eragon/cli",
   "version": "0.1.0",
-  "description": "Customer CLI for Eragon Anthropic workspace API keys.",
+  "description": "Command-line tools for Eragon workflows.",
   "type": "module",
   "bin": {
     "eragon": "./bin/eragon-keys.js",
