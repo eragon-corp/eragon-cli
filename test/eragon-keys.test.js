@@ -41,6 +41,7 @@ async function runCli(argv, { env = {}, response = makeResponse(200, {}) } = {})
     stdout,
     stderr,
     commandName: "eragon",
+    idempotencyKeyFactory: () => "eragon-cli-generated-id",
   });
   return { status, stdout: stdout.value, stderr: stderr.value, requests };
 }
@@ -155,6 +156,55 @@ test("keys create posts to workspace endpoint and can print key only", async () 
       body: JSON.stringify({ name: "example-project-key" }),
     },
   ]);
+});
+
+test("keys create auto-generates idempotency key when omitted", async () => {
+  const result = await runCli(
+    [
+      "--token",
+      "example-token",
+      "keys",
+      "create",
+      "--workspace",
+      "wrkspc_123",
+      "--name",
+      "example-project-key",
+    ],
+    {
+      response: makeResponse(200, {
+        api_key: "generated-key-returned-once",
+        name: "example-project-key",
+      }),
+    },
+  );
+
+  assert.equal(result.status, 0);
+  assert.equal(result.stderr, "");
+  assert.equal(result.requests[0].headers["Idempotency-Key"], "eragon-cli-generated-id");
+});
+
+test("keys create reports auto-generated idempotency key on request failure", async () => {
+  const result = await runCli(
+    [
+      "--token",
+      "example-token",
+      "keys",
+      "create",
+      "--workspace",
+      "wrkspc_123",
+      "--name",
+      "example-project-key",
+    ],
+    {
+      response: makeResponse(503, { detail: { error: "reauth_required" } }),
+    },
+  );
+
+  assert.equal(result.status, 1);
+  assert.equal(result.stdout, "");
+  assert.match(result.stderr, /request failed \(503\)/);
+  assert.match(result.stderr, /auto-generated idempotency key: eragon-cli-generated-id/);
+  assert.doesNotMatch(result.stderr, /example-token/);
 });
 
 test("keys list translates range and cost flags", async () => {

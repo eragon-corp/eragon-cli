@@ -37,8 +37,7 @@ eragon workspaces list
 
 eragon keys create \
   --workspace wrkspc_xxx \
-  --name example-project-key \
-  --idempotency-key request-uuid-or-ticket-id
+  --name example-project-key
 
 eragon keys get \
   --workspace wrkspc_xxx \
@@ -64,9 +63,11 @@ Pipe newly shown secrets directly into a secret manager:
 eragon keys create \
   --workspace wrkspc_xxx \
   --name example-project-key \
-  --idempotency-key request-uuid-or-ticket-id \
   --key-only
 ```
+
+`eragon keys create` automatically sends a unique idempotency key. Pass
+`--idempotency-key` only when you need to reuse a known request id.
 
 ## Local Development
 
