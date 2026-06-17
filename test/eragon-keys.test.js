@@ -80,6 +80,42 @@ test("workspaces list uses env token and prints table", async () => {
   ]);
 });
 
+test("workspaces create posts name and prints json response", async () => {
+  const result = await runCli(
+    [
+      "--token",
+      "example-token",
+      "workspaces",
+      "create",
+      "--name",
+      "example-workspace",
+    ],
+    {
+      response: makeResponse(200, {
+        workspace_id: "wrkspc_123",
+        name: "example-workspace",
+        status: "active",
+      }),
+    },
+  );
+
+  assert.equal(result.status, 0);
+  assert.equal(JSON.parse(result.stdout).workspace_id, "wrkspc_123");
+  assert.equal(result.stderr, "");
+  assert.deepEqual(result.requests, [
+    {
+      url: "https://example.test/anthropic/workspaces",
+      method: "POST",
+      headers: {
+        authorization: "Bearer example-token",
+        accept: "application/json",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ name: "example-workspace" }),
+    },
+  ]);
+});
+
 test("keys create posts to workspace endpoint and can print key only", async () => {
   const result = await runCli(
     [
@@ -228,13 +264,17 @@ test("api errors show status and detail without token", async () => {
 
 test("help is available at each command level", async () => {
   const top = await runCli(["--help"]);
+  const workspaceCreate = await runCli(["workspaces", "create", "--help"]);
   const create = await runCli(["keys", "create", "--help"]);
 
   assert.equal(top.status, 0);
   assert.match(top.stdout, /Usage: eragon/);
+  assert.equal(workspaceCreate.status, 0);
+  assert.match(workspaceCreate.stdout, /workspaces create --name NAME/);
   assert.equal(create.status, 0);
   assert.match(create.stdout, /--idempotency-key/);
   assert.deepEqual(top.requests, []);
+  assert.deepEqual(workspaceCreate.requests, []);
   assert.deepEqual(create.requests, []);
 });
 

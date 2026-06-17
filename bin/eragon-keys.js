@@ -140,7 +140,23 @@ function workspacesHelp(commandName) {
   return `Usage: ${commandName} workspaces <command>
 
 Commands:
+  create            Create a workspace
   list              List authorized workspaces
+`;
+}
+
+function workspacesCreateHelp(commandName) {
+  return `Usage: ${commandName} workspaces create --name NAME
+
+Options:
+  --name NAME       New workspace name
+`;
+}
+
+function workspacesListHelp(commandName) {
+  return `Usage: ${commandName} workspaces list
+
+Lists workspaces authorized for the configured token.
 `;
 }
 
@@ -192,6 +208,12 @@ Options:
 
 function helpFor(options) {
   const commandName = options.commandName || "eragon";
+  if (options.resource === "workspaces" && options.command === "create") {
+    return workspacesCreateHelp(commandName);
+  }
+  if (options.resource === "workspaces" && options.command === "list") {
+    return workspacesListHelp(commandName);
+  }
   if (options.resource === "workspaces") {
     return workspacesHelp(commandName);
   }
@@ -380,6 +402,19 @@ async function workspacesList(options, io) {
   return 0;
 }
 
+async function workspacesCreate(options, io) {
+  requireOption(options, "name");
+  const data = await requestJson(
+    options,
+    io.fetchImpl,
+    "POST",
+    "/anthropic/workspaces",
+    { body: { name: options.name } },
+  );
+  printJson(io.stdout, data);
+  return 0;
+}
+
 async function keysCreate(options, io) {
   requireOption(options, "workspace");
   requireOption(options, "name");
@@ -452,6 +487,9 @@ async function dispatch(options, io) {
   }
   if (options.resource === "workspaces" && options.command === "list") {
     return workspacesList(options, io);
+  }
+  if (options.resource === "workspaces" && options.command === "create") {
+    return workspacesCreate(options, io);
   }
   if (options.resource === "keys" && options.command === "create") {
     return keysCreate(options, io);

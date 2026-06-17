@@ -31,6 +31,8 @@ Prefer environment variables over command-line flags so bearer tokens and
 account-specific URLs do not appear in shell history or process lists.
 
 ```bash
+eragon workspaces create --name example-workspace
+
 eragon workspaces list
 
 eragon keys create \
