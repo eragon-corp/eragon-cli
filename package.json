@@ -1,0 +1,25 @@
+{
+  "name": "@eragon/cli",
+  "version": "0.1.0",
+  "description": "Customer CLI for Eragon Anthropic workspace API keys.",
+  "type": "module",
+  "bin": {
+    "eragon": "./bin/eragon-keys.js",
+    "eragon-keys": "./bin/eragon-keys.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/eragon-corp/eragon-cli.git"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "files": [
+    "bin/eragon-keys.js",
+    "README.md"
+  ],
+  "license": "UNLICENSED"
+}
