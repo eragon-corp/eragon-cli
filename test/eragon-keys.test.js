@@ -90,7 +90,7 @@ test("keys create posts to workspace endpoint and can print key only", async () 
       "--workspace",
       "wrkspc_123",
       "--name",
-      "deel-demo-key",
+      "example-project-key",
       "--idempotency-key",
       "ticket-123",
       "--key-only",
@@ -98,7 +98,7 @@ test("keys create posts to workspace endpoint and can print key only", async () 
     {
       response: makeResponse(200, {
         api_key: "generated-key-returned-once",
-        name: "deel-demo-key",
+        name: "example-project-key",
       }),
     },
   );
@@ -116,7 +116,7 @@ test("keys create posts to workspace endpoint and can print key only", async () 
         "Idempotency-Key": "ticket-123",
         "content-type": "application/json",
       },
-      body: JSON.stringify({ name: "deel-demo-key" }),
+      body: JSON.stringify({ name: "example-project-key" }),
     },
   ]);
 });
@@ -141,7 +141,7 @@ test("keys list translates range and cost flags", async () => {
         api_keys: [
           {
             api_key_id: "apikey_123",
-            name: "deel-demo-key",
+            name: "example-project-key",
             status: "active",
             created_at: "2026-06-17T00:00:00Z",
             cost: null,
@@ -176,7 +176,7 @@ test("keys get prints json response", async () => {
     {
       response: makeResponse(200, {
         api_key_id: "apikey_123",
-        name: "deel-demo-key",
+        name: "example-project-key",
         summary: { line_changes: 14 },
       }),
     },

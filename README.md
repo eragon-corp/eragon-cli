@@ -31,7 +31,7 @@ eragon workspaces list
 
 eragon keys create \
   --workspace wrkspc_xxx \
-  --name deel-demo-key \
+  --name example-project-key \
   --idempotency-key request-uuid-or-lumos-request-id
 
 eragon keys get \
@@ -57,7 +57,7 @@ Pipe the newly shown API key directly into a secret manager:
 ```bash
 eragon keys create \
   --workspace wrkspc_xxx \
-  --name deel-demo-key \
+  --name example-project-key \
   --idempotency-key request-uuid-or-lumos-request-id \
   --key-only
 ```
