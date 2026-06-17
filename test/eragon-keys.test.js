@@ -285,6 +285,8 @@ test("missing base url returns error without calling api", async () => {
   assert.equal(result.status, 2);
   assert.equal(result.stdout, "");
   assert.match(result.stderr, /missing base URL/);
+  assert.match(result.stderr, /export ERAGON_BASE_URL/);
+  assert.doesNotMatch(result.stderr, /--idempotency-key/);
   assert.deepEqual(result.requests, []);
 });
 
@@ -319,10 +321,13 @@ test("help is available at each command level", async () => {
 
   assert.equal(top.status, 0);
   assert.match(top.stdout, /Usage: eragon/);
+  assert.match(top.stdout, /export ERAGON_BASE_URL/);
   assert.equal(workspaceCreate.status, 0);
   assert.match(workspaceCreate.stdout, /workspaces create --name NAME/);
   assert.equal(create.status, 0);
-  assert.match(create.stdout, /--idempotency-key/);
+  assert.match(create.stdout, /export ERAGON_BASE_URL/);
+  assert.match(create.stdout, /eragon keys create --workspace wrkspc_xxx --name example-project-key/);
+  assert.doesNotMatch(create.stdout, /--idempotency-key/);
   assert.deepEqual(top.requests, []);
   assert.deepEqual(workspaceCreate.requests, []);
   assert.deepEqual(create.requests, []);

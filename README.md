@@ -66,8 +66,7 @@ eragon keys create \
   --key-only
 ```
 
-`eragon keys create` automatically sends a unique idempotency key. Pass
-`--idempotency-key` only when you need to reuse a known request id.
+`eragon keys create` automatically sends a unique request id for safe retries.
 
 ## Local Development
 

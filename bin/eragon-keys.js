@@ -128,6 +128,10 @@ function topHelp(commandName) {
 
 Command-line tools for Eragon workflows.
 
+Required setup:
+  export ERAGON_BASE_URL='https://your-eragon-api-url'
+  export ERAGON_TOKEN='token-from-eragon'
+
 Resources:
   workspaces        Workspace commands
   keys              Workspace API-key commands
@@ -138,6 +142,13 @@ Options:
   --timeout SEC     Request timeout in seconds. Defaults to ${DEFAULT_TIMEOUT_SECONDS}
   --json            Print raw JSON for list commands
   -h, --help        Show help
+`;
+}
+
+function setupHelp() {
+  return `Required setup:
+  export ERAGON_BASE_URL='https://your-eragon-api-url'
+  export ERAGON_TOKEN='token-from-eragon'
 `;
 }
 
@@ -153,8 +164,16 @@ Commands:
 function workspacesCreateHelp(commandName) {
   return `Usage: ${commandName} workspaces create --name NAME
 
+Create a new workspace.
+
+${setupHelp()}
 Options:
   --name NAME       New workspace name
+  --base-url URL    Override ERAGON_BASE_URL for this command
+  --token TOKEN     Override ERAGON_TOKEN for this command
+
+Example:
+  ${commandName} workspaces create --name example-workspace
 `;
 }
 
@@ -162,6 +181,11 @@ function workspacesListHelp(commandName) {
   return `Usage: ${commandName} workspaces list
 
 Lists workspaces authorized for the configured token.
+
+${setupHelp()}
+Options:
+  --base-url URL    Override ERAGON_BASE_URL for this command
+  --token TOKEN     Override ERAGON_TOKEN for this command
 `;
 }
 
@@ -178,17 +202,27 @@ Commands:
 function keysCreateHelp(commandName) {
   return `Usage: ${commandName} keys create --workspace ID --name NAME [options]
 
+Create a new API key in an authorized workspace.
+
+${setupHelp()}
 Options:
-  --workspace ID          Workspace id
-  --name NAME            New API-key name
-  --idempotency-key ID   Stable request id for safe retries; auto-generated when omitted
-  --key-only             Print only the newly shown API key secret
+  --workspace ID          Workspace id, for example wrkspc_xxx
+  --name NAME             Human-readable name for the new API key
+  --key-only              Print only the newly shown API key secret
+  --base-url URL          Override ERAGON_BASE_URL for this command
+  --token TOKEN           Override ERAGON_TOKEN for this command
+
+Example:
+  ${commandName} keys create --workspace wrkspc_xxx --name example-project-key
 `;
 }
 
 function keysListHelp(commandName) {
   return `Usage: ${commandName} keys list --workspace ID [options]
 
+List API keys in an authorized workspace.
+
+${setupHelp()}
 Options:
   --workspace ID    Workspace id
   --from DATE       Inclusive start date, YYYY-MM-DD
@@ -201,6 +235,9 @@ Options:
 function keysGetHelp(commandName) {
   return `Usage: ${commandName} keys get --workspace ID --key ID [options]
 
+Get one API key with usage details.
+
+${setupHelp()}
 Options:
   --workspace ID    Workspace id
   --key ID          API-key id
