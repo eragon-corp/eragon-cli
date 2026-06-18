@@ -134,7 +134,17 @@ eragon analytics workspace-usage daily --date 2026-06-17
 For Snowflake, Looker, or other automation, return raw JSON:
 
 ```bash
-eragon --json analytics workspace-usage daily --date 2026-06-17
+eragon analytics workspace-usage daily \
+  --date 2026-06-17 \
+  --format json
+```
+
+Export flattened CSV to stdout and redirect it to a file:
+
+```bash
+eragon analytics api-key-usage daily \
+  --date 2026-06-17 \
+  --format csv > api-key-usage-2026-06-17.csv
 ```
 
 ## Verify a Token

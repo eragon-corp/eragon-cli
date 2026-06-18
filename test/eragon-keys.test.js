@@ -323,12 +323,13 @@ test("analytics workspace daily usage can print json response", async () => {
     [
       "--token",
       "example-token",
-      "--json",
       "analytics",
       "workspace-usage",
       "daily",
       "--date",
       "2026-06-17",
+      "--format",
+      "json",
     ],
     {
       response: makeResponse(200, {
@@ -352,6 +353,92 @@ test("analytics workspace daily usage can print json response", async () => {
     result.requests[0].url,
     "https://example.test/analytics/workspace-usage/daily?date=2026-06-17",
   );
+});
+
+test("analytics daily usage can print csv export", async () => {
+  const result = await runCli(
+    [
+      "--token",
+      "example-token",
+      "analytics",
+      "api-key-usage",
+      "daily",
+      "--date",
+      "2026-06-17",
+      "--format",
+      "csv",
+    ],
+    {
+      response: makeResponse(200, {
+        date: "2026-06-17",
+        api_keys: [
+          {
+            date: "2026-06-17",
+            workspace_id: "wrkspc_123",
+            workspace_name: "Claude Code",
+            workspace_record_id: "ws_record_123",
+            api_key_id: "apikey_123",
+            api_key_name: "example, project key",
+            status: "active",
+            provider: "anthropic",
+            backend: "native",
+            created_at: "2026-06-17T00:00:00Z",
+            generated_at: "2026-06-18T00:00:00Z",
+            cost: {
+              cost_usd: 12.345678,
+              currency: "USD",
+              source: "console_usage_cost",
+              availability: "live",
+            },
+            claude_code: {
+              availability: "live",
+              match_type: "exact_key_name",
+              actor_name: "example-project-key",
+              estimated_cost_usd: 1.23,
+              line_changes: 42,
+              loc_added: 30,
+              loc_removed: 12,
+              loc_net: 18,
+              sessions: 3,
+              commits_by_claude_code: 1,
+              pull_requests_by_claude_code: 1,
+              accepted_edits: 7,
+              rejected_edits: 1,
+              suggestion_accept_rate: 87.5,
+            },
+          },
+        ],
+      }),
+    },
+  );
+
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /^date,workspace_id,workspace_name,/);
+  assert.match(result.stdout, /2026-06-17,wrkspc_123,Claude Code,ws_record_123,apikey_123/);
+  assert.match(result.stdout, /"example, project key"/);
+  assert.match(result.stdout, /console_usage_cost,live,live,exact_key_name/);
+  assert.equal(
+    result.requests[0].url,
+    "https://example.test/analytics/api-key-usage/daily?date=2026-06-17",
+  );
+});
+
+test("invalid format returns usage error without calling api", async () => {
+  const result = await runCli(
+    [
+      "--token",
+      "example-token",
+      "analytics",
+      "workspace-usage",
+      "daily",
+      "--format",
+      "xml",
+    ],
+  );
+
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /--format must be one of: table, json, csv/);
+  assert.deepEqual(result.requests, []);
 });
 
 test("missing base url returns error without calling api", async () => {
@@ -415,6 +502,7 @@ test("help is available at each command level", async () => {
   assert.equal(analytics.status, 0);
   assert.match(analytics.stdout, /analytics workspace-usage daily/);
   assert.match(analytics.stdout, /--date DATE/);
+  assert.match(analytics.stdout, /--format FORMAT/);
   assert.doesNotMatch(create.stdout, /--idempotency-key/);
   assert.deepEqual(top.requests, []);
   assert.deepEqual(workspaceCreate.requests, []);
