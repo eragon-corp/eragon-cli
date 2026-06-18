@@ -276,6 +276,84 @@ test("keys get prints json response", async () => {
   );
 });
 
+test("analytics api-key daily usage fetches materialized snapshot", async () => {
+  const result = await runCli(
+    [
+      "--token",
+      "example-token",
+      "analytics",
+      "api-key-usage",
+      "daily",
+      "--date",
+      "2026-06-17",
+      "--workspace",
+      "wrkspc_123",
+    ],
+    {
+      response: makeResponse(200, {
+        date: "2026-06-17",
+        api_keys: [
+          {
+            date: "2026-06-17",
+            workspace_id: "wrkspc_123",
+            api_key_id: "apikey_123",
+            api_key_name: "example-project-key",
+            cost: { cost_usd: 12.345678 },
+            claude_code: { line_changes: 42, sessions: 3 },
+          },
+        ],
+      }),
+    },
+  );
+
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /apikey_123/);
+  assert.match(result.stdout, /example-project-key/);
+  assert.match(result.stdout, /12.345678/);
+  assert.equal(result.requests[0].method, "GET");
+  assert.equal(
+    result.requests[0].url,
+    "https://example.test/analytics/api-key-usage/daily"
+      + "?date=2026-06-17&workspaceId=wrkspc_123",
+  );
+});
+
+test("analytics workspace daily usage can print json response", async () => {
+  const result = await runCli(
+    [
+      "--token",
+      "example-token",
+      "--json",
+      "analytics",
+      "workspace-usage",
+      "daily",
+      "--date",
+      "2026-06-17",
+    ],
+    {
+      response: makeResponse(200, {
+        date: "2026-06-17",
+        workspaces: [
+          {
+            workspace_id: "wrkspc_123",
+            workspace_name: "Claude Code",
+            api_key_count: 12,
+            cost: { cost_usd: 99.5 },
+            claude_code: { line_changes: 1234, sessions: 8 },
+          },
+        ],
+      }),
+    },
+  );
+
+  assert.equal(result.status, 0);
+  assert.equal(JSON.parse(result.stdout).workspaces[0].workspace_id, "wrkspc_123");
+  assert.equal(
+    result.requests[0].url,
+    "https://example.test/analytics/workspace-usage/daily?date=2026-06-17",
+  );
+});
+
 test("missing base url returns error without calling api", async () => {
   const result = await runCli(
     ["--token", "example-token", "workspaces", "list"],
@@ -318,19 +396,30 @@ test("help is available at each command level", async () => {
   const top = await runCli(["--help"]);
   const workspaceCreate = await runCli(["workspaces", "create", "--help"]);
   const create = await runCli(["keys", "create", "--help"]);
+  const analytics = await runCli([
+    "analytics",
+    "workspace-usage",
+    "daily",
+    "--help",
+  ]);
 
   assert.equal(top.status, 0);
   assert.match(top.stdout, /Usage: eragon/);
+  assert.match(top.stdout, /analytics/);
   assert.match(top.stdout, /export ERAGON_BASE_URL/);
   assert.equal(workspaceCreate.status, 0);
   assert.match(workspaceCreate.stdout, /workspaces create --name NAME/);
   assert.equal(create.status, 0);
   assert.match(create.stdout, /export ERAGON_BASE_URL/);
   assert.match(create.stdout, /eragon keys create --workspace wrkspc_xxx --name example-project-key/);
+  assert.equal(analytics.status, 0);
+  assert.match(analytics.stdout, /analytics workspace-usage daily/);
+  assert.match(analytics.stdout, /--date DATE/);
   assert.doesNotMatch(create.stdout, /--idempotency-key/);
   assert.deepEqual(top.requests, []);
   assert.deepEqual(workspaceCreate.requests, []);
   assert.deepEqual(create.requests, []);
+  assert.deepEqual(analytics.requests, []);
 });
 
 test("legacy eragon-keys alias can still render matching help", async () => {

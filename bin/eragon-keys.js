@@ -81,6 +81,7 @@ export function parseArgs(argv, env = process.env, commandName = "eragon") {
     "--key",
     "--from",
     "--to",
+    "--date",
   ]);
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -117,8 +118,12 @@ export function parseArgs(argv, env = process.env, commandName = "eragon") {
 
   options.resource = commands[0] || "";
   options.command = commands[1] || "";
-  if (commands.length > 2) {
+  options.subcommand = commands[2] || "";
+  if (commands.length > 2 && options.resource !== "analytics") {
     throw new UsageError(`unexpected argument: ${commands[2]}`);
+  }
+  if (commands.length > 3) {
+    throw new UsageError(`unexpected argument: ${commands[3]}`);
   }
   return options;
 }
@@ -135,6 +140,7 @@ Required setup:
 Resources:
   workspaces        Workspace commands
   keys              Workspace API-key commands
+  analytics         Daily analytics export commands
 
 Options:
   --base-url URL    Defaults to ERAGON_BASE_URL
@@ -248,6 +254,47 @@ Options:
 `;
 }
 
+function analyticsHelp(commandName) {
+  return `Usage: ${commandName} analytics <command> daily [options]
+
+Commands:
+  api-key-usage     Export materialized daily API-key usage
+  workspace-usage   Export materialized daily workspace usage
+`;
+}
+
+function analyticsApiKeyUsageDailyHelp(commandName) {
+  return `Usage: ${commandName} analytics api-key-usage daily [options]
+
+Export materialized daily API-key usage.
+
+${setupHelp()}
+Options:
+  --date DATE       Snapshot date, YYYY-MM-DD. Defaults to the API default.
+  --workspace ID    Optional workspace filter
+  --json            Print raw JSON
+
+Example:
+  ${commandName} analytics api-key-usage daily --date 2026-06-17
+`;
+}
+
+function analyticsWorkspaceUsageDailyHelp(commandName) {
+  return `Usage: ${commandName} analytics workspace-usage daily [options]
+
+Export materialized daily workspace usage.
+
+${setupHelp()}
+Options:
+  --date DATE       Snapshot date, YYYY-MM-DD. Defaults to the API default.
+  --workspace ID    Optional workspace filter
+  --json            Print raw JSON
+
+Example:
+  ${commandName} analytics workspace-usage daily --date 2026-06-17
+`;
+}
+
 function helpFor(options) {
   const commandName = options.commandName || "eragon";
   if (options.resource === "workspaces" && options.command === "create") {
@@ -270,6 +317,23 @@ function helpFor(options) {
   }
   if (options.resource === "keys") {
     return keysHelp(commandName);
+  }
+  if (
+    options.resource === "analytics"
+    && options.command === "api-key-usage"
+    && options.subcommand === "daily"
+  ) {
+    return analyticsApiKeyUsageDailyHelp(commandName);
+  }
+  if (
+    options.resource === "analytics"
+    && options.command === "workspace-usage"
+    && options.subcommand === "daily"
+  ) {
+    return analyticsWorkspaceUsageDailyHelp(commandName);
+  }
+  if (options.resource === "analytics") {
+    return analyticsHelp(commandName);
   }
   return topHelp(commandName);
 }
@@ -306,6 +370,17 @@ function requestParams(options) {
   }
   if (options.includeCost !== undefined) {
     params.includeCost = options.includeCost ? "true" : "false";
+  }
+  return params;
+}
+
+function dailySnapshotParams(options) {
+  const params = {};
+  if (options.date) {
+    params.date = options.date;
+  }
+  if (options.workspace) {
+    params.workspaceId = options.workspace;
   }
   return params;
 }
@@ -401,6 +476,12 @@ function scalar(value) {
 
 function costValue(row) {
   return row.cost && typeof row.cost === "object" ? scalar(row.cost.cost_usd) : "";
+}
+
+function claudeCodeValue(row, key) {
+  return row.claude_code && typeof row.claude_code === "object"
+    ? scalar(row.claude_code[key])
+    : "";
 }
 
 function table(rows, columns) {
@@ -534,6 +615,57 @@ async function keysGet(options, io) {
   return 0;
 }
 
+async function analyticsApiKeyUsageDaily(options, io) {
+  const data = await requestJson(
+    options,
+    io.fetchImpl,
+    "GET",
+    "/analytics/api-key-usage/daily",
+    { params: dailySnapshotParams(options) },
+  );
+  if (options.json) {
+    printJson(io.stdout, data);
+    return 0;
+  }
+  const rows = Array.isArray(data?.api_keys) ? data.api_keys : [];
+  io.stdout.write(table(rows, [
+    ["date", (row) => row.date || data?.date],
+    ["workspace_id", (row) => row.workspace_id || row.provider_workspace_id],
+    ["api_key_id", (row) => row.api_key_id || row.provider_key_id],
+    ["name", (row) => row.api_key_name || row.name],
+    ["cost_usd", costValue],
+    ["line_changes", (row) => claudeCodeValue(row, "line_changes")],
+    ["sessions", (row) => claudeCodeValue(row, "sessions")],
+  ]));
+  return 0;
+}
+
+async function analyticsWorkspaceUsageDaily(options, io) {
+  const data = await requestJson(
+    options,
+    io.fetchImpl,
+    "GET",
+    "/analytics/workspace-usage/daily",
+    { params: dailySnapshotParams(options) },
+  );
+  if (options.json) {
+    printJson(io.stdout, data);
+    return 0;
+  }
+  const rows = Array.isArray(data?.workspaces) ? data.workspaces : [];
+  io.stdout.write(table(rows, [
+    ["date", (row) => row.date || data?.date],
+    ["workspace_id", (row) => row.workspace_id || row.provider_workspace_id],
+    ["name", (row) => row.workspace_name || row.name],
+    ["api_keys", (row) => row.api_key_count],
+    ["active_keys", (row) => row.active_api_key_count],
+    ["cost_usd", costValue],
+    ["line_changes", (row) => claudeCodeValue(row, "line_changes")],
+    ["sessions", (row) => claudeCodeValue(row, "sessions")],
+  ]));
+  return 0;
+}
+
 async function dispatch(options, io) {
   if (!options.resource) {
     throw new UsageError("missing resource");
@@ -553,11 +685,28 @@ async function dispatch(options, io) {
   if (options.resource === "keys" && options.command === "get") {
     return keysGet(options, io);
   }
+  if (
+    options.resource === "analytics"
+    && options.command === "api-key-usage"
+    && options.subcommand === "daily"
+  ) {
+    return analyticsApiKeyUsageDaily(options, io);
+  }
+  if (
+    options.resource === "analytics"
+    && options.command === "workspace-usage"
+    && options.subcommand === "daily"
+  ) {
+    return analyticsWorkspaceUsageDaily(options, io);
+  }
   if (options.resource === "workspaces") {
     throw new UsageError("missing or unknown workspaces command");
   }
   if (options.resource === "keys") {
     throw new UsageError("missing or unknown keys command");
+  }
+  if (options.resource === "analytics") {
+    throw new UsageError("missing or unknown analytics command");
   }
   throw new UsageError(`unknown resource: ${options.resource}`);
 }
