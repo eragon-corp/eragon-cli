@@ -67,6 +67,7 @@ export function parseArgs(argv, env = process.env, commandName = "eragon") {
     json: false,
     keyOnly: false,
     includeCost: undefined,
+    format: "table",
     help: false,
     commandName,
   };
@@ -82,6 +83,7 @@ export function parseArgs(argv, env = process.env, commandName = "eragon") {
     "--from",
     "--to",
     "--date",
+    "--format",
   ]);
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -90,6 +92,7 @@ export function parseArgs(argv, env = process.env, commandName = "eragon") {
       options.help = true;
     } else if (arg === "--json") {
       options.json = true;
+      options.format = "json";
     } else if (arg === "--key-only") {
       options.keyOnly = true;
     } else if (arg === "--include-cost") {
@@ -106,6 +109,9 @@ export function parseArgs(argv, env = process.env, commandName = "eragon") {
         if (!Number.isFinite(options.timeout) || options.timeout <= 0) {
           throw new UsageError("--timeout must be a positive number");
         }
+      } else if (arg === "--format") {
+        options.format = parseFormat(value);
+        options.json = options.format === "json";
       } else {
         options[optionKey(arg)] = value;
       }
@@ -128,6 +134,14 @@ export function parseArgs(argv, env = process.env, commandName = "eragon") {
   return options;
 }
 
+function parseFormat(value) {
+  const format = String(value || "").toLowerCase();
+  if (!["table", "json", "csv"].includes(format)) {
+    throw new UsageError("--format must be one of: table, json, csv");
+  }
+  return format;
+}
+
 function topHelp(commandName) {
   return `Usage: ${commandName} [options] <resource> <command>
 
@@ -146,7 +160,8 @@ Options:
   --base-url URL    Defaults to ERAGON_BASE_URL
   --token TOKEN     Defaults to ERAGON_TOKEN
   --timeout SEC     Request timeout in seconds. Defaults to ${DEFAULT_TIMEOUT_SECONDS}
-  --json            Print raw JSON for list commands
+  --format FORMAT   table, json, or csv where supported
+  --json            Alias for --format json
   -h, --help        Show help
 `;
 }
@@ -272,10 +287,12 @@ ${setupHelp()}
 Options:
   --date DATE       Snapshot date, YYYY-MM-DD. Defaults to the API default.
   --workspace ID    Optional workspace filter
-  --json            Print raw JSON
+  --format FORMAT   table, json, or csv. Defaults to table.
+  --json            Alias for --format json
 
 Example:
   ${commandName} analytics api-key-usage daily --date 2026-06-17
+  ${commandName} analytics api-key-usage daily --date 2026-06-17 --format csv
 `;
 }
 
@@ -288,10 +305,12 @@ ${setupHelp()}
 Options:
   --date DATE       Snapshot date, YYYY-MM-DD. Defaults to the API default.
   --workspace ID    Optional workspace filter
-  --json            Print raw JSON
+  --format FORMAT   table, json, or csv. Defaults to table.
+  --json            Alias for --format json
 
 Example:
   ${commandName} analytics workspace-usage daily --date 2026-06-17
+  ${commandName} analytics workspace-usage daily --date 2026-06-17 --format csv
 `;
 }
 
@@ -504,6 +523,22 @@ function printJson(stdout, data) {
   stdout.write(`${JSON.stringify(data, null, 2)}\n`);
 }
 
+function csvEscape(value) {
+  const text = scalar(value);
+  if (/[",\r\n]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+}
+
+function csv(rows, columns) {
+  const header = columns.map(([name]) => csvEscape(name)).join(",");
+  const body = rows.map((row) => (
+    columns.map(([, getter]) => csvEscape(getter(row))).join(",")
+  ));
+  return `${[header, ...body].join("\n")}\n`;
+}
+
 async function workspacesList(options, io) {
   const data = await requestJson(
     options,
@@ -623,11 +658,50 @@ async function analyticsApiKeyUsageDaily(options, io) {
     "/analytics/api-key-usage/daily",
     { params: dailySnapshotParams(options) },
   );
-  if (options.json) {
+  if (options.format === "json") {
     printJson(io.stdout, data);
     return 0;
   }
   const rows = Array.isArray(data?.api_keys) ? data.api_keys : [];
+  const exportRows = rows.map((row) => ({
+    ...row,
+    _export_date: row.date || data?.date,
+  }));
+  const columns = [
+    ["date", (row) => row._export_date],
+    ["workspace_id", (row) => row.workspace_id || row.provider_workspace_id],
+    ["workspace_name", (row) => row.workspace_name],
+    ["workspace_record_id", (row) => row.workspace_record_id],
+    ["api_key_id", (row) => row.api_key_id || row.provider_key_id],
+    ["api_key_name", (row) => row.api_key_name || row.name],
+    ["status", (row) => row.status],
+    ["provider", (row) => row.provider],
+    ["backend", (row) => row.backend],
+    ["cost_usd", costValue],
+    ["cost_currency", (row) => row.cost?.currency],
+    ["cost_source", (row) => row.cost?.source],
+    ["cost_availability", (row) => row.cost?.availability],
+    ["claude_code_availability", (row) => row.claude_code?.availability],
+    ["claude_code_match_type", (row) => row.claude_code?.match_type],
+    ["claude_code_actor_name", (row) => row.claude_code?.actor_name],
+    ["claude_code_estimated_cost_usd", (row) => claudeCodeValue(row, "estimated_cost_usd")],
+    ["line_changes", (row) => claudeCodeValue(row, "line_changes")],
+    ["loc_added", (row) => claudeCodeValue(row, "loc_added")],
+    ["loc_removed", (row) => claudeCodeValue(row, "loc_removed")],
+    ["loc_net", (row) => claudeCodeValue(row, "loc_net")],
+    ["sessions", (row) => claudeCodeValue(row, "sessions")],
+    ["commits_by_claude_code", (row) => claudeCodeValue(row, "commits_by_claude_code")],
+    ["pull_requests_by_claude_code", (row) => claudeCodeValue(row, "pull_requests_by_claude_code")],
+    ["accepted_edits", (row) => claudeCodeValue(row, "accepted_edits")],
+    ["rejected_edits", (row) => claudeCodeValue(row, "rejected_edits")],
+    ["suggestion_accept_rate", (row) => claudeCodeValue(row, "suggestion_accept_rate")],
+    ["created_at", (row) => row.created_at],
+    ["generated_at", (row) => row.generated_at],
+  ];
+  if (options.format === "csv") {
+    io.stdout.write(csv(exportRows, columns));
+    return 0;
+  }
   io.stdout.write(table(rows, [
     ["date", (row) => row.date || data?.date],
     ["workspace_id", (row) => row.workspace_id || row.provider_workspace_id],
@@ -648,11 +722,46 @@ async function analyticsWorkspaceUsageDaily(options, io) {
     "/analytics/workspace-usage/daily",
     { params: dailySnapshotParams(options) },
   );
-  if (options.json) {
+  if (options.format === "json") {
     printJson(io.stdout, data);
     return 0;
   }
   const rows = Array.isArray(data?.workspaces) ? data.workspaces : [];
+  const exportRows = rows.map((row) => ({
+    ...row,
+    _export_date: row.date || data?.date,
+  }));
+  const columns = [
+    ["date", (row) => row._export_date],
+    ["workspace_id", (row) => row.workspace_id || row.provider_workspace_id],
+    ["workspace_name", (row) => row.workspace_name || row.name],
+    ["workspace_record_id", (row) => row.workspace_record_id],
+    ["provider", (row) => row.provider],
+    ["backend", (row) => row.backend],
+    ["api_key_count", (row) => row.api_key_count],
+    ["active_api_key_count", (row) => row.active_api_key_count],
+    ["cost_usd", costValue],
+    ["cost_currency", (row) => row.cost?.currency],
+    ["cost_source", (row) => row.cost?.source],
+    ["cost_availability", (row) => row.cost?.availability],
+    ["claude_code_availability", (row) => row.claude_code?.availability],
+    ["claude_code_estimated_cost_usd", (row) => claudeCodeValue(row, "estimated_cost_usd")],
+    ["line_changes", (row) => claudeCodeValue(row, "line_changes")],
+    ["loc_added", (row) => claudeCodeValue(row, "loc_added")],
+    ["loc_removed", (row) => claudeCodeValue(row, "loc_removed")],
+    ["loc_net", (row) => claudeCodeValue(row, "loc_net")],
+    ["sessions", (row) => claudeCodeValue(row, "sessions")],
+    ["commits_by_claude_code", (row) => claudeCodeValue(row, "commits_by_claude_code")],
+    ["pull_requests_by_claude_code", (row) => claudeCodeValue(row, "pull_requests_by_claude_code")],
+    ["accepted_edits", (row) => claudeCodeValue(row, "accepted_edits")],
+    ["rejected_edits", (row) => claudeCodeValue(row, "rejected_edits")],
+    ["suggestion_accept_rate", (row) => claudeCodeValue(row, "suggestion_accept_rate")],
+    ["generated_at", (row) => row.generated_at],
+  ];
+  if (options.format === "csv") {
+    io.stdout.write(csv(exportRows, columns));
+    return 0;
+  }
   io.stdout.write(table(rows, [
     ["date", (row) => row.date || data?.date],
     ["workspace_id", (row) => row.workspace_id || row.provider_workspace_id],
