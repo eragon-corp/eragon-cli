@@ -108,6 +108,35 @@ For automation, return raw JSON:
 eragon --json keys list --workspace wrkspc_xxx
 ```
 
+## Export Daily Usage
+
+Fetch materialized daily API-key usage. Pass `--date` explicitly for repeatable
+exports:
+
+```bash
+eragon analytics api-key-usage daily --date 2026-06-17
+```
+
+Filter to one workspace when needed:
+
+```bash
+eragon analytics api-key-usage daily \
+  --date 2026-06-17 \
+  --workspace wrkspc_xxx
+```
+
+Fetch workspace-level daily rollups:
+
+```bash
+eragon analytics workspace-usage daily --date 2026-06-17
+```
+
+For Snowflake, Looker, or other automation, return raw JSON:
+
+```bash
+eragon --json analytics workspace-usage daily --date 2026-06-17
+```
+
 ## Verify a Token
 
 Run `eragon workspaces list` to confirm the configured token can access at
