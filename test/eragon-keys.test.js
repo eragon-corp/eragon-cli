@@ -90,11 +90,14 @@ test("workspaces create posts name and prints json response", async () => {
       "create",
       "--name",
       "example-workspace",
+      "--cost-limit",
+      "500",
     ],
     {
       response: makeResponse(200, {
         workspace_id: "wrkspc_123",
         name: "example-workspace",
+        cost_limit_usd: 500,
         status: "active",
       }),
     },
@@ -112,12 +115,12 @@ test("workspaces create posts name and prints json response", async () => {
         accept: "application/json",
         "content-type": "application/json",
       },
-      body: JSON.stringify({ name: "example-workspace" }),
+      body: JSON.stringify({ name: "example-workspace", cost_limit_usd: 500 }),
     },
   ]);
 });
 
-test("keys create posts to workspace endpoint and can print key only", async () => {
+test("keys create posts to workspace endpoint with cost limit and can print key only", async () => {
   const result = await runCli(
     [
       "--token",
@@ -130,6 +133,8 @@ test("keys create posts to workspace endpoint and can print key only", async () 
       "example-project-key",
       "--idempotency-key",
       "ticket-123",
+      "--cost-limit",
+      "125",
       "--key-only",
     ],
     {
@@ -153,7 +158,7 @@ test("keys create posts to workspace endpoint and can print key only", async () 
         "Idempotency-Key": "ticket-123",
         "content-type": "application/json",
       },
-      body: JSON.stringify({ name: "example-project-key" }),
+      body: JSON.stringify({ name: "example-project-key", cost_limit_usd: 125 }),
     },
   ]);
 });
@@ -231,6 +236,8 @@ test("keys list translates range and cost flags", async () => {
             status: "active",
             created_at: "2026-06-17T00:00:00Z",
             cost: null,
+            cost_limit_usd: 8,
+            cost_limit_status: { status: "over_limit", used_usd: 9.25 },
           },
         ],
       }),
@@ -239,12 +246,57 @@ test("keys list translates range and cost flags", async () => {
 
   assert.equal(result.status, 0);
   assert.match(result.stdout, /apikey_123/);
+  assert.match(result.stdout, /over_limit/);
   assert.equal(result.requests[0].method, "GET");
   assert.equal(
     result.requests[0].url,
     "https://example.test/anthropic/workspaces/wrkspc_123/api-keys"
       + "?startingOn=2026-06-01&endingBefore=2026-07-01&includeCost=false",
   );
+});
+
+test("workspaces and keys limits patch cost limit endpoints", async () => {
+  const workspace = await runCli(
+    [
+      "--token",
+      "example-token",
+      "workspaces",
+      "set-limit",
+      "--workspace",
+      "wrkspc_123",
+      "--limit",
+      "500",
+    ],
+    { response: makeResponse(200, { cost_limit_usd: 500 }) },
+  );
+  const key = await runCli(
+    [
+      "--token",
+      "example-token",
+      "keys",
+      "clear-limit",
+      "--workspace",
+      "wrkspc_123",
+      "--key",
+      "apikey_123",
+    ],
+    { response: makeResponse(200, { cost_limit_usd: null }) },
+  );
+
+  assert.equal(workspace.status, 0);
+  assert.equal(workspace.requests[0].method, "PATCH");
+  assert.equal(
+    workspace.requests[0].url,
+    "https://example.test/anthropic/workspaces/wrkspc_123/limit",
+  );
+  assert.equal(workspace.requests[0].body, JSON.stringify({ cost_limit_usd: 500 }));
+  assert.equal(key.status, 0);
+  assert.equal(key.requests[0].method, "PATCH");
+  assert.equal(
+    key.requests[0].url,
+    "https://example.test/anthropic/workspaces/wrkspc_123/api-keys/apikey_123/limit",
+  );
+  assert.equal(key.requests[0].body, JSON.stringify({ cost_limit_usd: null }));
 });
 
 test("keys get prints json response", async () => {
@@ -496,9 +548,11 @@ test("help is available at each command level", async () => {
   assert.match(top.stdout, /export ERAGON_BASE_URL/);
   assert.equal(workspaceCreate.status, 0);
   assert.match(workspaceCreate.stdout, /workspaces create --name NAME/);
+  assert.match(workspaceCreate.stdout, /--cost-limit USD/);
   assert.equal(create.status, 0);
   assert.match(create.stdout, /export ERAGON_BASE_URL/);
-  assert.match(create.stdout, /eragon keys create --workspace wrkspc_xxx --name example-project-key/);
+  assert.match(create.stdout, /--cost-limit USD/);
+  assert.match(create.stdout, /eragon keys create --workspace wrkspc_xxx --name example-project-key --cost-limit 125/);
   assert.equal(analytics.status, 0);
   assert.match(analytics.stdout, /analytics workspace-usage daily/);
   assert.match(analytics.stdout, /--date DATE/);
