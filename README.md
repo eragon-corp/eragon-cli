@@ -35,10 +35,23 @@ account-specific URLs do not appear in shell history or process lists.
 Create a new workspace:
 
 ```bash
-eragon workspaces create --name example-workspace
+eragon workspaces create \
+  --name example-workspace \
+  --cost-limit 500
 ```
 
 The response includes a `workspace_id`. Save it for later key operations.
+
+Set or clear an advisory monthly USD limit on an existing workspace:
+
+```bash
+eragon workspaces set-limit \
+  --workspace wrkspc_xxx \
+  --limit 500
+
+eragon workspaces clear-limit \
+  --workspace wrkspc_xxx
+```
 
 ## List Workspaces
 
@@ -61,7 +74,8 @@ Create a key in a workspace:
 ```bash
 eragon keys create \
   --workspace wrkspc_xxx \
-  --name example-project-key
+  --name example-project-key \
+  --cost-limit 125
 ```
 
 The `--name` value is a human-readable label for the key.
@@ -78,6 +92,19 @@ eragon keys create \
 
 Store the generated secret immediately. Newly created key secrets are typically
 shown only once.
+
+Set or clear an advisory monthly USD limit on an existing key:
+
+```bash
+eragon keys set-limit \
+  --workspace wrkspc_xxx \
+  --key apikey_xxx \
+  --limit 125
+
+eragon keys clear-limit \
+  --workspace wrkspc_xxx \
+  --key apikey_xxx
+```
 
 ## Get Key Detail
 
@@ -107,6 +134,10 @@ For automation, return raw JSON:
 ```bash
 eragon --json keys list --workspace wrkspc_xxx
 ```
+
+Cost limits are Eragon-managed advisory metadata. Anthropic does not enforce
+them directly unless traffic is routed through an Eragon gateway that can block
+or rotate credentials.
 
 ## Export Daily Usage
 

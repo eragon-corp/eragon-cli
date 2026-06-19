@@ -50,6 +50,14 @@ function requireValue(argv, index, optionName) {
   return value;
 }
 
+function parseUsd(value, optionName) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount < 0) {
+    throw new UsageError(`${optionName} must be a non-negative number`);
+  }
+  return amount;
+}
+
 function commandNameFromArgv(argv1) {
   if (!argv1) {
     return "eragon";
@@ -84,6 +92,8 @@ export function parseArgs(argv, env = process.env, commandName = "eragon") {
     "--to",
     "--date",
     "--format",
+    "--cost-limit",
+    "--limit",
   ]);
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -112,6 +122,8 @@ export function parseArgs(argv, env = process.env, commandName = "eragon") {
       } else if (arg === "--format") {
         options.format = parseFormat(value);
         options.json = options.format === "json";
+      } else if (arg === "--cost-limit" || arg === "--limit") {
+        options.costLimit = parseUsd(value, arg);
       } else {
         options[optionKey(arg)] = value;
       }
@@ -179,22 +191,25 @@ function workspacesHelp(commandName) {
 Commands:
   create            Create a workspace
   list              List authorized workspaces
+  set-limit         Set a workspace cost limit
+  clear-limit       Clear a workspace cost limit
 `;
 }
 
 function workspacesCreateHelp(commandName) {
-  return `Usage: ${commandName} workspaces create --name NAME
+  return `Usage: ${commandName} workspaces create --name NAME [--cost-limit USD]
 
 Create a new workspace.
 
 ${setupHelp()}
 Options:
   --name NAME       New workspace name
+  --cost-limit USD  Optional advisory monthly USD cost limit
   --base-url URL    Override ERAGON_BASE_URL for this command
   --token TOKEN     Override ERAGON_TOKEN for this command
 
 Example:
-  ${commandName} workspaces create --name example-workspace
+  ${commandName} workspaces create --name example-workspace --cost-limit 500
 `;
 }
 
@@ -210,6 +225,29 @@ Options:
 `;
 }
 
+function workspacesSetLimitHelp(commandName) {
+  return `Usage: ${commandName} workspaces set-limit --workspace ID --limit USD
+
+Set an advisory monthly USD cost limit for a workspace.
+
+${setupHelp()}
+Options:
+  --workspace ID    Workspace id
+  --limit USD       Advisory monthly USD cost limit
+`;
+}
+
+function workspacesClearLimitHelp(commandName) {
+  return `Usage: ${commandName} workspaces clear-limit --workspace ID
+
+Clear the advisory monthly USD cost limit for a workspace.
+
+${setupHelp()}
+Options:
+  --workspace ID    Workspace id
+`;
+}
+
 function keysHelp(commandName) {
   return `Usage: ${commandName} keys <command>
 
@@ -217,6 +255,8 @@ Commands:
   create            Create an API key in an authorized workspace
   get               Get one workspace API key with analytics
   list              List API keys in an authorized workspace
+  set-limit         Set an API-key cost limit
+  clear-limit       Clear an API-key cost limit
 `;
 }
 
@@ -229,12 +269,13 @@ ${setupHelp()}
 Options:
   --workspace ID          Workspace id, for example wrkspc_xxx
   --name NAME             Human-readable name for the new API key
+  --cost-limit USD        Optional advisory monthly USD cost limit
   --key-only              Print only the newly shown API key secret
   --base-url URL          Override ERAGON_BASE_URL for this command
   --token TOKEN           Override ERAGON_TOKEN for this command
 
 Example:
-  ${commandName} keys create --workspace wrkspc_xxx --name example-project-key
+  ${commandName} keys create --workspace wrkspc_xxx --name example-project-key --cost-limit 125
 `;
 }
 
@@ -266,6 +307,31 @@ Options:
   --to DATE         Exclusive end date, YYYY-MM-DD
   --include-cost    Request cost enrichment explicitly
   --no-cost         Skip Console usage-cost enrichment
+`;
+}
+
+function keysSetLimitHelp(commandName) {
+  return `Usage: ${commandName} keys set-limit --workspace ID --key ID --limit USD
+
+Set an advisory monthly USD cost limit for one API key.
+
+${setupHelp()}
+Options:
+  --workspace ID    Workspace id
+  --key ID          API-key id
+  --limit USD       Advisory monthly USD cost limit
+`;
+}
+
+function keysClearLimitHelp(commandName) {
+  return `Usage: ${commandName} keys clear-limit --workspace ID --key ID
+
+Clear the advisory monthly USD cost limit for one API key.
+
+${setupHelp()}
+Options:
+  --workspace ID    Workspace id
+  --key ID          API-key id
 `;
 }
 
@@ -322,6 +388,12 @@ function helpFor(options) {
   if (options.resource === "workspaces" && options.command === "list") {
     return workspacesListHelp(commandName);
   }
+  if (options.resource === "workspaces" && options.command === "set-limit") {
+    return workspacesSetLimitHelp(commandName);
+  }
+  if (options.resource === "workspaces" && options.command === "clear-limit") {
+    return workspacesClearLimitHelp(commandName);
+  }
   if (options.resource === "workspaces") {
     return workspacesHelp(commandName);
   }
@@ -333,6 +405,12 @@ function helpFor(options) {
   }
   if (options.resource === "keys" && options.command === "get") {
     return keysGetHelp(commandName);
+  }
+  if (options.resource === "keys" && options.command === "set-limit") {
+    return keysSetLimitHelp(commandName);
+  }
+  if (options.resource === "keys" && options.command === "clear-limit") {
+    return keysClearLimitHelp(commandName);
   }
   if (options.resource === "keys") {
     return keysHelp(commandName);
@@ -497,6 +575,12 @@ function costValue(row) {
   return row.cost && typeof row.cost === "object" ? scalar(row.cost.cost_usd) : "";
 }
 
+function limitStatus(row) {
+  return row.cost_limit_status && typeof row.cost_limit_status === "object"
+    ? row.cost_limit_status.status
+    : "";
+}
+
 function claudeCodeValue(row, key) {
   return row.claude_code && typeof row.claude_code === "object"
     ? scalar(row.claude_code[key])
@@ -554,6 +638,8 @@ async function workspacesList(options, io) {
   io.stdout.write(table(rows, [
     ["workspace_id", (row) => row.workspace_id || row.provider_workspace_id],
     ["name", (row) => row.name],
+    ["limit_usd", (row) => row.cost_limit_usd],
+    ["limit_status", limitStatus],
     ["status", (row) => row.status],
     ["created_at", (row) => row.created_at],
   ]));
@@ -562,12 +648,29 @@ async function workspacesList(options, io) {
 
 async function workspacesCreate(options, io) {
   requireOption(options, "name");
+  const body = { name: options.name };
+  if (options.costLimit !== undefined) {
+    body.cost_limit_usd = options.costLimit;
+  }
   const data = await requestJson(
     options,
     io.fetchImpl,
     "POST",
     "/anthropic/workspaces",
-    { body: { name: options.name } },
+    { body },
+  );
+  printJson(io.stdout, data);
+  return 0;
+}
+
+async function workspacesLimit(options, io, costLimit) {
+  requireOption(options, "workspace");
+  const data = await requestJson(
+    options,
+    io.fetchImpl,
+    "PATCH",
+    `/anthropic/workspaces/${options.workspace}/limit`,
+    { body: { cost_limit_usd: costLimit } },
   );
   printJson(io.stdout, data);
   return 0;
@@ -581,6 +684,10 @@ async function keysCreate(options, io) {
   const headers = {
     "Idempotency-Key": idempotencyKey,
   };
+  const body = { name: options.name };
+  if (options.costLimit !== undefined) {
+    body.cost_limit_usd = options.costLimit;
+  }
   let data;
   try {
     data = await requestJson(
@@ -589,7 +696,7 @@ async function keysCreate(options, io) {
       "POST",
       `/anthropic/workspaces/${options.workspace}/api-keys`,
       {
-        body: { name: options.name },
+        body,
         headers,
       },
     );
@@ -631,6 +738,8 @@ async function keysList(options, io) {
     ["name", (row) => row.name],
     ["status", (row) => row.status],
     ["cost_usd", costValue],
+    ["limit_usd", (row) => row.cost_limit_usd],
+    ["limit_status", limitStatus],
     ["created_at", (row) => row.created_at],
   ]));
   return 0;
@@ -645,6 +754,20 @@ async function keysGet(options, io) {
     "GET",
     `/anthropic/workspaces/${options.workspace}/api-keys/${options.key}`,
     { params: requestParams(options) },
+  );
+  printJson(io.stdout, data);
+  return 0;
+}
+
+async function keysLimit(options, io, costLimit) {
+  requireOption(options, "workspace");
+  requireOption(options, "key");
+  const data = await requestJson(
+    options,
+    io.fetchImpl,
+    "PATCH",
+    `/anthropic/workspaces/${options.workspace}/api-keys/${options.key}/limit`,
+    { body: { cost_limit_usd: costLimit } },
   );
   printJson(io.stdout, data);
   return 0;
@@ -785,6 +908,15 @@ async function dispatch(options, io) {
   if (options.resource === "workspaces" && options.command === "create") {
     return workspacesCreate(options, io);
   }
+  if (options.resource === "workspaces" && options.command === "set-limit") {
+    if (options.costLimit === undefined) {
+      throw new UsageError("missing required --limit");
+    }
+    return workspacesLimit(options, io, options.costLimit);
+  }
+  if (options.resource === "workspaces" && options.command === "clear-limit") {
+    return workspacesLimit(options, io, null);
+  }
   if (options.resource === "keys" && options.command === "create") {
     return keysCreate(options, io);
   }
@@ -793,6 +925,15 @@ async function dispatch(options, io) {
   }
   if (options.resource === "keys" && options.command === "get") {
     return keysGet(options, io);
+  }
+  if (options.resource === "keys" && options.command === "set-limit") {
+    if (options.costLimit === undefined) {
+      throw new UsageError("missing required --limit");
+    }
+    return keysLimit(options, io, options.costLimit);
+  }
+  if (options.resource === "keys" && options.command === "clear-limit") {
+    return keysLimit(options, io, null);
   }
   if (
     options.resource === "analytics"
