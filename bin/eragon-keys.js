@@ -628,7 +628,7 @@ async function workspacesList(options, io) {
     options,
     io.fetchImpl,
     "GET",
-    "/anthropic/workspaces",
+    "/v1/anthropic/workspaces",
   );
   if (options.json) {
     printJson(io.stdout, data);
@@ -656,7 +656,7 @@ async function workspacesCreate(options, io) {
     options,
     io.fetchImpl,
     "POST",
-    "/anthropic/workspaces",
+    "/v1/anthropic/workspaces",
     { body },
   );
   printJson(io.stdout, data);
@@ -669,7 +669,7 @@ async function workspacesLimit(options, io, costLimit) {
     options,
     io.fetchImpl,
     "PATCH",
-    `/anthropic/workspaces/${options.workspace}/limit`,
+    `/v1/anthropic/workspaces/${options.workspace}/cost-limit`,
     { body: { cost_limit_usd: costLimit } },
   );
   printJson(io.stdout, data);
@@ -694,7 +694,7 @@ async function keysCreate(options, io) {
       options,
       io.fetchImpl,
       "POST",
-      `/anthropic/workspaces/${options.workspace}/api-keys`,
+      `/v1/anthropic/workspaces/${options.workspace}/api-keys`,
       {
         body,
         headers,
@@ -725,7 +725,7 @@ async function keysList(options, io) {
     options,
     io.fetchImpl,
     "GET",
-    `/anthropic/workspaces/${options.workspace}/api-keys`,
+    `/v1/anthropic/workspaces/${options.workspace}/api-keys`,
     { params: requestParams(options) },
   );
   if (options.json) {
@@ -752,7 +752,7 @@ async function keysGet(options, io) {
     options,
     io.fetchImpl,
     "GET",
-    `/anthropic/workspaces/${options.workspace}/api-keys/${options.key}`,
+    `/v1/anthropic/workspaces/${options.workspace}/api-keys/${options.key}`,
     { params: requestParams(options) },
   );
   printJson(io.stdout, data);
@@ -766,7 +766,7 @@ async function keysLimit(options, io, costLimit) {
     options,
     io.fetchImpl,
     "PATCH",
-    `/anthropic/workspaces/${options.workspace}/api-keys/${options.key}/limit`,
+    `/v1/anthropic/workspaces/${options.workspace}/api-keys/${options.key}/cost-limit`,
     { body: { cost_limit_usd: costLimit } },
   );
   printJson(io.stdout, data);

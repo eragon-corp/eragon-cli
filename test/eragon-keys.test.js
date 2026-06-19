@@ -70,7 +70,7 @@ test("workspaces list uses env token and prints table", async () => {
   assert.match(result.stdout, /Claude Code/);
   assert.deepEqual(result.requests, [
     {
-      url: "https://example.test/anthropic/workspaces",
+      url: "https://example.test/v1/anthropic/workspaces",
       method: "GET",
       headers: {
         authorization: "Bearer example-token",
@@ -108,7 +108,7 @@ test("workspaces create posts name and prints json response", async () => {
   assert.equal(result.stderr, "");
   assert.deepEqual(result.requests, [
     {
-      url: "https://example.test/anthropic/workspaces",
+      url: "https://example.test/v1/anthropic/workspaces",
       method: "POST",
       headers: {
         authorization: "Bearer example-token",
@@ -150,7 +150,7 @@ test("keys create posts to workspace endpoint with cost limit and can print key 
   assert.equal(result.stderr, "");
   assert.deepEqual(result.requests, [
     {
-      url: "https://example.test/anthropic/workspaces/wrkspc_123/api-keys",
+      url: "https://example.test/v1/anthropic/workspaces/wrkspc_123/api-keys",
       method: "POST",
       headers: {
         authorization: "Bearer example-token",
@@ -250,7 +250,7 @@ test("keys list translates range and cost flags", async () => {
   assert.equal(result.requests[0].method, "GET");
   assert.equal(
     result.requests[0].url,
-    "https://example.test/anthropic/workspaces/wrkspc_123/api-keys"
+    "https://example.test/v1/anthropic/workspaces/wrkspc_123/api-keys"
       + "?startingOn=2026-06-01&endingBefore=2026-07-01&includeCost=false",
   );
 });
@@ -287,14 +287,14 @@ test("workspaces and keys limits patch cost limit endpoints", async () => {
   assert.equal(workspace.requests[0].method, "PATCH");
   assert.equal(
     workspace.requests[0].url,
-    "https://example.test/anthropic/workspaces/wrkspc_123/limit",
+    "https://example.test/v1/anthropic/workspaces/wrkspc_123/cost-limit",
   );
   assert.equal(workspace.requests[0].body, JSON.stringify({ cost_limit_usd: 500 }));
   assert.equal(key.status, 0);
   assert.equal(key.requests[0].method, "PATCH");
   assert.equal(
     key.requests[0].url,
-    "https://example.test/anthropic/workspaces/wrkspc_123/api-keys/apikey_123/limit",
+    "https://example.test/v1/anthropic/workspaces/wrkspc_123/api-keys/apikey_123/cost-limit",
   );
   assert.equal(key.requests[0].body, JSON.stringify({ cost_limit_usd: null }));
 });
@@ -324,7 +324,7 @@ test("keys get prints json response", async () => {
   assert.equal(JSON.parse(result.stdout).summary.line_changes, 14);
   assert.equal(
     result.requests[0].url,
-    "https://example.test/anthropic/workspaces/wrkspc_123/api-keys/apikey_123",
+    "https://example.test/v1/anthropic/workspaces/wrkspc_123/api-keys/apikey_123",
   );
 });
 
