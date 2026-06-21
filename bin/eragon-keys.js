@@ -88,6 +88,8 @@ export function parseArgs(argv, env = process.env, commandName = "eragon") {
     "--name",
     "--idempotency-key",
     "--key",
+    "--keys",
+    "--reason",
     "--from",
     "--to",
     "--date",
@@ -191,6 +193,7 @@ function workspacesHelp(commandName) {
 Commands:
   create            Create a workspace
   list              List authorized workspaces
+  archive           Archive an empty workspace
   set-limit         Set a workspace cost limit
   clear-limit       Clear a workspace cost limit
 `;
@@ -248,11 +251,24 @@ Options:
 `;
 }
 
+function workspacesArchiveHelp(commandName) {
+  return `Usage: ${commandName} workspaces archive --workspace ID
+
+Archive an empty workspace. Archive API keys first.
+
+${setupHelp()}
+Options:
+  --workspace ID    Workspace id
+`;
+}
+
 function keysHelp(commandName) {
   return `Usage: ${commandName} keys <command>
 
 Commands:
   create            Create an API key in an authorized workspace
+  archive           Archive one API key
+  archive-bulk      Archive multiple API keys
   get               Get one workspace API key with analytics
   list              List API keys in an authorized workspace
   set-limit         Set an API-key cost limit
@@ -335,6 +351,34 @@ Options:
 `;
 }
 
+function keysArchiveHelp(commandName) {
+  return `Usage: ${commandName} keys archive --workspace ID --key ID
+
+Archive one API key while preserving historical usage.
+
+${setupHelp()}
+Options:
+  --workspace ID    Workspace id
+  --key ID          API-key id
+`;
+}
+
+function keysArchiveBulkHelp(commandName) {
+  return `Usage: ${commandName} keys archive-bulk --workspace ID --keys IDS [--reason TEXT]
+
+Archive multiple API keys while preserving historical usage.
+
+${setupHelp()}
+Options:
+  --workspace ID    Workspace id
+  --keys IDS        Comma-separated API-key ids
+  --reason TEXT     Optional audit reason
+
+Example:
+  ${commandName} keys archive-bulk --workspace wrkspc_xxx --keys apikey_a,apikey_b
+`;
+}
+
 function analyticsHelp(commandName) {
   return `Usage: ${commandName} analytics <command> daily [options]
 
@@ -394,6 +438,9 @@ function helpFor(options) {
   if (options.resource === "workspaces" && options.command === "clear-limit") {
     return workspacesClearLimitHelp(commandName);
   }
+  if (options.resource === "workspaces" && options.command === "archive") {
+    return workspacesArchiveHelp(commandName);
+  }
   if (options.resource === "workspaces") {
     return workspacesHelp(commandName);
   }
@@ -411,6 +458,12 @@ function helpFor(options) {
   }
   if (options.resource === "keys" && options.command === "clear-limit") {
     return keysClearLimitHelp(commandName);
+  }
+  if (options.resource === "keys" && options.command === "archive") {
+    return keysArchiveHelp(commandName);
+  }
+  if (options.resource === "keys" && options.command === "archive-bulk") {
+    return keysArchiveBulkHelp(commandName);
   }
   if (options.resource === "keys") {
     return keysHelp(commandName);
@@ -480,6 +533,17 @@ function dailySnapshotParams(options) {
     params.workspaceId = options.workspace;
   }
   return params;
+}
+
+function parseKeyIds(value) {
+  const keyIds = String(value || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  if (keyIds.length === 0) {
+    throw new UsageError("missing required --keys");
+  }
+  return [...new Set(keyIds)];
 }
 
 function withParams(url, params) {
@@ -676,6 +740,18 @@ async function workspacesLimit(options, io, costLimit) {
   return 0;
 }
 
+async function workspacesArchive(options, io) {
+  requireOption(options, "workspace");
+  const data = await requestJson(
+    options,
+    io.fetchImpl,
+    "POST",
+    `/v1/anthropic/workspaces/${options.workspace}/archive`,
+  );
+  printJson(io.stdout, data);
+  return 0;
+}
+
 async function keysCreate(options, io) {
   requireOption(options, "workspace");
   requireOption(options, "name");
@@ -768,6 +844,37 @@ async function keysLimit(options, io, costLimit) {
     "PATCH",
     `/v1/anthropic/workspaces/${options.workspace}/api-keys/${options.key}/cost-limit`,
     { body: { cost_limit_usd: costLimit } },
+  );
+  printJson(io.stdout, data);
+  return 0;
+}
+
+async function keysArchive(options, io) {
+  requireOption(options, "workspace");
+  requireOption(options, "key");
+  const data = await requestJson(
+    options,
+    io.fetchImpl,
+    "POST",
+    `/v1/anthropic/workspaces/${options.workspace}/api-keys/${options.key}/archive`,
+  );
+  printJson(io.stdout, data);
+  return 0;
+}
+
+async function keysArchiveBulk(options, io) {
+  requireOption(options, "workspace");
+  requireOption(options, "keys");
+  const body = { api_key_ids: parseKeyIds(options.keys) };
+  if (options.reason) {
+    body.reason = options.reason;
+  }
+  const data = await requestJson(
+    options,
+    io.fetchImpl,
+    "POST",
+    `/v1/anthropic/workspaces/${options.workspace}/api-keys/archive`,
+    { body },
   );
   printJson(io.stdout, data);
   return 0;
@@ -917,6 +1024,9 @@ async function dispatch(options, io) {
   if (options.resource === "workspaces" && options.command === "clear-limit") {
     return workspacesLimit(options, io, null);
   }
+  if (options.resource === "workspaces" && options.command === "archive") {
+    return workspacesArchive(options, io);
+  }
   if (options.resource === "keys" && options.command === "create") {
     return keysCreate(options, io);
   }
@@ -934,6 +1044,12 @@ async function dispatch(options, io) {
   }
   if (options.resource === "keys" && options.command === "clear-limit") {
     return keysLimit(options, io, null);
+  }
+  if (options.resource === "keys" && options.command === "archive") {
+    return keysArchive(options, io);
+  }
+  if (options.resource === "keys" && options.command === "archive-bulk") {
+    return keysArchiveBulk(options, io);
   }
   if (
     options.resource === "analytics"

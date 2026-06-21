@@ -299,6 +299,39 @@ test("workspaces and keys limits patch cost limit endpoints", async () => {
   assert.equal(key.requests[0].body, JSON.stringify({ cost_limit_usd: null }));
 });
 
+test("workspaces archive calls provider-scoped archive endpoint", async () => {
+  const result = await runCli(
+    [
+      "--token",
+      "example-token",
+      "workspaces",
+      "archive",
+      "--workspace",
+      "wrkspc_123",
+    ],
+    {
+      response: makeResponse(200, {
+        workspace_id: "wrkspc_123",
+        status: "archived",
+      }),
+    },
+  );
+
+  assert.equal(result.status, 0);
+  assert.equal(JSON.parse(result.stdout).status, "archived");
+  assert.deepEqual(result.requests, [
+    {
+      url: "https://example.test/v1/anthropic/workspaces/wrkspc_123/archive",
+      method: "POST",
+      headers: {
+        authorization: "Bearer example-token",
+        accept: "application/json",
+      },
+      body: undefined,
+    },
+  ]);
+});
+
 test("keys get prints json response", async () => {
   const result = await runCli(
     [
@@ -326,6 +359,86 @@ test("keys get prints json response", async () => {
     result.requests[0].url,
     "https://example.test/v1/anthropic/workspaces/wrkspc_123/api-keys/apikey_123",
   );
+});
+
+test("keys archive calls provider-scoped API key archive endpoint", async () => {
+  const result = await runCli(
+    [
+      "--token",
+      "example-token",
+      "keys",
+      "archive",
+      "--workspace",
+      "wrkspc_123",
+      "--key",
+      "apikey_123",
+    ],
+    {
+      response: makeResponse(200, {
+        api_key_id: "apikey_123",
+        status: "archived",
+      }),
+    },
+  );
+
+  assert.equal(result.status, 0);
+  assert.equal(JSON.parse(result.stdout).status, "archived");
+  assert.deepEqual(result.requests, [
+    {
+      url: "https://example.test/v1/anthropic/workspaces/wrkspc_123/api-keys/apikey_123/archive",
+      method: "POST",
+      headers: {
+        authorization: "Bearer example-token",
+        accept: "application/json",
+      },
+      body: undefined,
+    },
+  ]);
+});
+
+test("keys archive-bulk posts API key ids to bulk archive endpoint", async () => {
+  const result = await runCli(
+    [
+      "--token",
+      "example-token",
+      "keys",
+      "archive-bulk",
+      "--workspace",
+      "wrkspc_123",
+      "--keys",
+      "apikey_123, apikey_456,apikey_123",
+      "--reason",
+      "cleanup",
+    ],
+    {
+      response: makeResponse(200, {
+        archived_count: 2,
+        failed_count: 0,
+        results: [
+          { api_key_id: "apikey_123", status: "archived" },
+          { api_key_id: "apikey_456", status: "archived" },
+        ],
+      }),
+    },
+  );
+
+  assert.equal(result.status, 0);
+  assert.equal(JSON.parse(result.stdout).archived_count, 2);
+  assert.deepEqual(result.requests, [
+    {
+      url: "https://example.test/v1/anthropic/workspaces/wrkspc_123/api-keys/archive",
+      method: "POST",
+      headers: {
+        authorization: "Bearer example-token",
+        accept: "application/json",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        api_key_ids: ["apikey_123", "apikey_456"],
+        reason: "cleanup",
+      }),
+    },
+  ]);
 });
 
 test("analytics api-key daily usage fetches materialized snapshot", async () => {
@@ -534,7 +647,9 @@ test("api errors show status and detail without token", async () => {
 test("help is available at each command level", async () => {
   const top = await runCli(["--help"]);
   const workspaceCreate = await runCli(["workspaces", "create", "--help"]);
+  const workspaceArchive = await runCli(["workspaces", "archive", "--help"]);
   const create = await runCli(["keys", "create", "--help"]);
+  const archiveBulk = await runCli(["keys", "archive-bulk", "--help"]);
   const analytics = await runCli([
     "analytics",
     "workspace-usage",
@@ -549,10 +664,15 @@ test("help is available at each command level", async () => {
   assert.equal(workspaceCreate.status, 0);
   assert.match(workspaceCreate.stdout, /workspaces create --name NAME/);
   assert.match(workspaceCreate.stdout, /--cost-limit USD/);
+  assert.equal(workspaceArchive.status, 0);
+  assert.match(workspaceArchive.stdout, /workspaces archive --workspace ID/);
   assert.equal(create.status, 0);
   assert.match(create.stdout, /export ERAGON_BASE_URL/);
   assert.match(create.stdout, /--cost-limit USD/);
   assert.match(create.stdout, /eragon keys create --workspace wrkspc_xxx --name example-project-key --cost-limit 125/);
+  assert.equal(archiveBulk.status, 0);
+  assert.match(archiveBulk.stdout, /keys archive-bulk --workspace ID --keys IDS/);
+  assert.match(archiveBulk.stdout, /preserving historical usage/i);
   assert.equal(analytics.status, 0);
   assert.match(analytics.stdout, /analytics workspace-usage daily/);
   assert.match(analytics.stdout, /--date DATE/);
@@ -560,7 +680,9 @@ test("help is available at each command level", async () => {
   assert.doesNotMatch(create.stdout, /--idempotency-key/);
   assert.deepEqual(top.requests, []);
   assert.deepEqual(workspaceCreate.requests, []);
+  assert.deepEqual(workspaceArchive.requests, []);
   assert.deepEqual(create.requests, []);
+  assert.deepEqual(archiveBulk.requests, []);
   assert.deepEqual(analytics.requests, []);
 });
 

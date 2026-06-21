@@ -150,6 +150,35 @@ eragon keys clear-limit \
   --key apikey_xxx
 ```
 
+## Archive Keys and Workspaces
+
+Archive keys instead of deleting them, so historical usage and cost data remains
+available.
+
+Archive one key:
+
+```bash
+eragon keys archive \
+  --workspace wrkspc_xxx \
+  --key apikey_xxx
+```
+
+Archive a batch of keys:
+
+```bash
+eragon keys archive-bulk \
+  --workspace wrkspc_xxx \
+  --keys apikey_xxx,apikey_yyy \
+  --reason cleanup
+```
+
+Archive an empty workspace after its API keys are archived:
+
+```bash
+eragon workspaces archive \
+  --workspace wrkspc_xxx
+```
+
 ## Export Daily Usage
 
 Fetch materialized daily API-key usage. Pass `--date` explicitly for repeatable
