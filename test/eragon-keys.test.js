@@ -478,7 +478,7 @@ test("analytics api-key daily usage fetches materialized snapshot", async () => 
   assert.equal(result.requests[0].method, "GET");
   assert.equal(
     result.requests[0].url,
-    "https://example.test/analytics/api-key-usage/daily"
+    "https://example.test/v1/analytics/api-key-usage/daily"
       + "?date=2026-06-17&workspaceId=wrkspc_123",
   );
 });
@@ -516,7 +516,7 @@ test("analytics workspace daily usage can print json response", async () => {
   assert.equal(JSON.parse(result.stdout).workspaces[0].workspace_id, "wrkspc_123");
   assert.equal(
     result.requests[0].url,
-    "https://example.test/analytics/workspace-usage/daily?date=2026-06-17",
+    "https://example.test/v1/analytics/workspace-usage/daily?date=2026-06-17",
   );
 });
 
@@ -584,7 +584,7 @@ test("analytics daily usage can print csv export", async () => {
   assert.match(result.stdout, /console_usage_cost,live,live,exact_key_name/);
   assert.equal(
     result.requests[0].url,
-    "https://example.test/analytics/api-key-usage/daily?date=2026-06-17",
+    "https://example.test/v1/analytics/api-key-usage/daily?date=2026-06-17",
   );
 });
 

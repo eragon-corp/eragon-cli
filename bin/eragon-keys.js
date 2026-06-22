@@ -885,7 +885,7 @@ async function analyticsApiKeyUsageDaily(options, io) {
     options,
     io.fetchImpl,
     "GET",
-    "/analytics/api-key-usage/daily",
+    "/v1/analytics/api-key-usage/daily",
     { params: dailySnapshotParams(options) },
   );
   if (options.format === "json") {
@@ -949,7 +949,7 @@ async function analyticsWorkspaceUsageDaily(options, io) {
     options,
     io.fetchImpl,
     "GET",
-    "/analytics/workspace-usage/daily",
+    "/v1/analytics/workspace-usage/daily",
     { params: dailySnapshotParams(options) },
   );
   if (options.format === "json") {
